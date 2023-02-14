@@ -1,5 +1,5 @@
-# tracks2crops
-This repository contains scripts for mini-scenes extraction from CVAT tracks.
+# imageomics-tools
+This repository contains tool for working with data for annotating animal behavior.
 
 
 
