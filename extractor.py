@@ -2,31 +2,16 @@ import os
 import sys
 from lxml import etree
 import cv2
-from utils import get_scene
+from src.utils import get_scene
 from collections import OrderedDict
-from detector import Detector
-from tracker import Tracker, TrackedObject
-from animal import Animal
-from draw import Draw
+from src.detector import Detector
+from src.tracker import Tracker, TrackedObject
+from src.animal import Animal
+from src.draw import Draw
 from tqdm import tqdm
 
-if __name__ == "__main__":
-    if len(sys.argv) != 3 and len(sys.argv) != 4:
-        # video_path = "Zebras/11_01_23/DJI_0977.mp4"
-        # annotation_path = "ANNOTATED/Zebras/11_01_23/DJI_0977/annotations.xml"
-        print("python extractor.py path_to_video path_to_annotation")
-        exit(0)
-    elif len(sys.argv) == 3:
-        video_path = sys.argv[1]
-        annotation_path = sys.argv[2]
-        tracking = False
-    # tracking=True: use external tracker instead of CVAT tracks.
-    # tracking=False: use CVAT tracks.
-    elif len(sys.argv) == 4:
-        video_path = sys.argv[1]
-        annotation_path = sys.argv[2]
-        tracking = bool(sys.argv[3])
 
+def extract(video_path, annotation_path, tracking):
     # Parse CVAT for video 1.1 annotation file.
     root = etree.parse(annotation_path).getroot()
     annotated = dict()
@@ -45,12 +30,17 @@ if __name__ == "__main__":
                                              int(float(box.attrib["xbr"])),
                                              int(float(box.attrib["ybr"]))]
 
+    if not os.path.exists(f"mini-scenes"):
+        os.makedirs(f"mini-scenes")
+
     annotated_size = int("".join(root.find("meta").find("task").find("size").itertext()))
     name = os.path.splitext(video_path.split("/")[-1])[0]
     index = 0
     scene_width, scene_height = 400, 300
     vc = cv2.VideoCapture(video_path)
-    vw = cv2.VideoWriter(f"{name}_vis.mp4", cv2.VideoWriter_fourcc("M", "P", "4", "V"), 29.97, (3840, 2160))
+    original_width, original_height = int(vc.get(cv2.CAP_PROP_FRAME_WIDTH)), int(vc.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    vw = cv2.VideoWriter(f"mini-scenes/{name}.mp4", cv2.VideoWriter_fourcc("m", "p", "4", "v"), 29.97,
+                         (original_width, original_height))
     tracker = Tracker(max_disappeared=40, max_distance=200)
     tracked_objects = {}
     vc.set(cv2.CAP_PROP_POS_FRAMES, index)
@@ -90,7 +80,7 @@ if __name__ == "__main__":
                             os.makedirs(f"mini-scenes/{name}")
 
                         tracks_vw[animal.object_id] = cv2.VideoWriter(f"mini-scenes/{name}/{animal.object_id}.mp4",
-                                                                      cv2.VideoWriter_fourcc("M", "P", "4", "V"),
+                                                                      cv2.VideoWriter_fourcc("m", "p", "4", "v"),
                                                                       29.97, (scene_width, scene_height))
                 for animal in animals:
                     TrackedObject.update(tracked_objects, animal)
@@ -103,7 +93,7 @@ if __name__ == "__main__":
 
             cv2.putText(visualization, f"Frame: {index}", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 3,
                         cv2.LINE_AA)
-            cv2.imshow("tracks2crops", cv2.resize(visualization, (3840 // 2, 2160 // 2)))
+            cv2.imshow("tracks2crops", cv2.resize(visualization, (original_width // 2, original_height // 2)))
             vw.write(visualization)
             key = cv2.waitKey(1)
             index += 1
@@ -121,3 +111,39 @@ if __name__ == "__main__":
     vc.release()
     vw.release()
     cv2.destroyAllWindows()
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3 and len(sys.argv) != 4:
+        print("python extractor.py path_to_video path_to_annotation")
+        exit(0)
+    elif len(sys.argv) == 3:
+        video = sys.argv[1]
+        annotation = sys.argv[2]
+        tracking = False
+    # tracking=True: use external tracker instead of CVAT tracks.
+    # tracking=False: use CVAT tracks.
+    elif len(sys.argv) == 4:
+        video = sys.argv[1]
+        annotation = sys.argv[2]
+        tracking = bool(sys.argv[3])
+
+    if os.path.isdir(annotation):
+        videos = []
+        annotations = []
+
+        for root, dirs, files in os.walk(annotation, topdown=False):
+            for file in files:
+                videos.append(os.path.join(video + root[len(annotation):], os.path.splitext(file)[0] + ".mp4"))
+                annotations.append(os.path.join(root, file))
+
+        for i, (video, annotation) in enumerate(zip(videos, annotations)):
+            print(f"{i + 1}/{len(annotations)}:")
+
+            if not os.path.exists(video):
+                print(f"Path {video} does not exist.")
+                continue
+
+            extract(video, annotation, tracking)
+    else:
+        extract(video, annotation, tracking)
