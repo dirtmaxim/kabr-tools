@@ -115,7 +115,7 @@ def extract(video_path, annotation_path, tracking):
 
 if __name__ == "__main__":
     if len(sys.argv) != 3 and len(sys.argv) != 4:
-        print("python extractor.py path_to_video path_to_annotation")
+        print("python extractor.py path_to_video path_to_annotation [tracking]")
         exit(0)
     elif len(sys.argv) == 3:
         video = sys.argv[1]
