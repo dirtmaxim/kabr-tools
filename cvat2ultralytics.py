@@ -23,7 +23,7 @@ if __name__ == "__main__":
         dataset = sys.argv[3]
         skip = sys.argv[4]
 
-    # Create a COCO dataset structure.
+    # Create a YOLO dataset structure.
     dataset_file = f"""
     path: {dataset}
     train: images/train
