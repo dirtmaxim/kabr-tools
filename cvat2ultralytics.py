@@ -31,7 +31,7 @@ if __name__ == "__main__":
     test: images/test
 
     nc: 1
-    names: ['Zebra']
+    names: ['Animal']
     """
 
     if os.path.exists(f"{dataset}"):
@@ -81,7 +81,7 @@ if __name__ == "__main__":
         name = os.path.splitext(video.split("/")[-1])[0]
         annotated_size = int("".join(root.find("meta").find("task").find("size").itertext()))
         width = int("".join(root.find("meta").find("task").find("original_size").find("width").itertext()))
-        height = int("".join(root.find("meta").find("task").find("original_size").find("width").itertext()))
+        height = int("".join(root.find("meta").find("task").find("original_size").find("height").itertext()))
         annotated = dict()
 
         for track in root.iterfind("track"):
@@ -94,12 +94,15 @@ if __name__ == "__main__":
                 if annotated.get(frame_id) is None:
                     annotated[frame_id] = OrderedDict()
 
-                annotated[frame_id][track_id] = [
-                    label,
-                    float(box.attrib["xtl"]) / width,
-                    float(box.attrib["ytl"]) / height,
-                    float(box.attrib["xbr"]) / width - float(box.attrib["xtl"]) / width,
-                    float(box.attrib["ybr"]) / height - float(box.attrib["ytl"]) / height]
+                x_start = float(box.attrib["xtl"])
+                y_start = float(box.attrib["ytl"])
+                x_end = float(box.attrib["xbr"])
+                y_end = float(box.attrib["ybr"])
+                x_center = (x_start + (x_end - x_start) / 2) / width
+                y_center = (y_start + (y_end - y_start) / 2) / height
+                w = (x_end - x_start) / width
+                h = (y_end - y_start) / height
+                annotated[frame_id][track_id] = [label, x_center, y_center, w, h]
 
         index = 0
         vc = cv2.VideoCapture(video)
