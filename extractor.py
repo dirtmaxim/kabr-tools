@@ -39,7 +39,7 @@ def generate_timeline_image(name, timeline, timeline_colors, annotated_size):
         cv2.putText(timeline_resized, str(key), (30, i * 100 + 50),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, tuple([j - 30 for j in color]), 2, cv2.LINE_AA)
 
-    cv2.imwrite(f"mini-scenes/{name}.jpg", timeline_resized)
+    cv2.imwrite(f"mini-scenes/{name}/timeline/{name}.jpg", timeline_resized)
 
 
 def extract(video_path, annotation_path, tracking):
@@ -147,9 +147,12 @@ def extract(video_path, annotation_path, tracking):
     for track_key in tracks_vw.keys():
         tracks_vw[track_key].release()
 
+    if not os.path.exists(f"mini-scenes/{name}/timeline"):
+        os.makedirs(f"mini-scenes/{name}/timeline")
+
     generate_timeline_image(name, timeline, timeline_colors, annotated_size)
 
-    with open(f"mini-scenes/{name}.json", "w") as file:
+    with open(f"mini-scenes/{name}/timeline/{name}.json", "w") as file:
         json.dump(timeline, file)
 
     pbar.close()
