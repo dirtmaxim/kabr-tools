@@ -13,8 +13,8 @@ Convert CVAT annotations to Ultralytics YOLO dataset.
 python cvat2ultralytics.py path_to_videos path_to_annotations dataset_name [skip_frames]
 ```
 
-counter.py:\
-List all video files in a folder with corresponding length.
+player.py:\
+Player for track and behavior observation.
 ```
-python counter.py path_to_folder
+python player.py path_to_video [save]
 ```

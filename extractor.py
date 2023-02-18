@@ -13,17 +13,22 @@ from src.draw import Draw
 from tqdm import tqdm
 
 
-def generate_timeline_image(name, timeline, timeline_colors, annotated_size):
+def generate_timeline_image(name, timeline, annotated_size):
+    colors = timeline["colors"]
+    del timeline["colors"]
     timeline_image = np.zeros(shape=(len(timeline.keys()) * 100, annotated_size, 3), dtype=np.uint8)
 
     for i, (key, value) in enumerate(timeline.items()):
-        if timeline_colors.get(key) is None:
+        if colors.get(key) is None:
             color = (127, 127, 127)
         else:
-            color = timeline_colors[key]
+            color = colors[key]
 
+        binary = np.array(value, dtype=np.int32)
+        binary[binary >= 0] = 1
+        binary[binary < 0] = 0
         timeline_image[(i * 100):(i + 1) * 100, 0:annotated_size] = color
-        mask = np.repeat(np.array(value, dtype=np.uint8).reshape(1, -1), repeats=100, axis=0)
+        mask = np.repeat(np.array(binary, dtype=np.uint8).reshape(1, -1), repeats=100, axis=0)
         image = timeline_image[(i * 100):(i + 1) * 100, 0:annotated_size]
         timeline_image[(i * 100):(i + 1) * 100, 0:annotated_size] = \
             cv2.bitwise_and(image, image, mask=mask)
@@ -31,15 +36,16 @@ def generate_timeline_image(name, timeline, timeline_colors, annotated_size):
     timeline_resized = cv2.resize(timeline_image, (1000, timeline_image.shape[0]))
 
     for i, (key, value) in enumerate(timeline.items()):
-        if timeline_colors.get(key) is None:
+        if colors.get(key) is None:
             color = (127, 127, 127)
         else:
-            color = timeline_colors[key]
+            color = colors[key]
 
         cv2.putText(timeline_resized, str(key), (30, i * 100 + 50),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, tuple([j - 30 for j in color]), 2, cv2.LINE_AA)
 
-    cv2.imwrite(f"mini-scenes/{name}/timeline/{name}.jpg", timeline_resized)
+    timeline["colors"] = colors
+    cv2.imwrite(f"mini-scenes/{name}/metadata/{name}.jpg", timeline_resized)
 
 
 def extract(video_path, annotation_path, tracking):
@@ -66,7 +72,6 @@ def extract(video_path, annotation_path, tracking):
 
     annotated_size = int("".join(root.find("meta").find("task").find("size").itertext()))
     name = os.path.splitext(video_path.split("/")[-1])[0]
-    index = 0
     scene_width, scene_height = 400, 300
     vc = cv2.VideoCapture(video_path)
     original_width, original_height = int(vc.get(cv2.CAP_PROP_FRAME_WIDTH)), int(vc.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -74,11 +79,11 @@ def extract(video_path, annotation_path, tracking):
                          (original_width, original_height))
     tracker = Tracker(max_disappeared=40, max_distance=200)
     tracked_objects = {}
-
-    # It stores information about position of a mini-scene relative to the main video.
+    index = 0
+    tracked_indices = OrderedDict()
     timeline = OrderedDict()
-    timeline[name] = [1] * annotated_size
-    timeline_colors = {}
+    timeline["main"] = [-1] * annotated_size
+    timeline["colors"] = {}
     vc.set(cv2.CAP_PROP_POS_FRAMES, index)
     tracks_vw = dict()
     pbar = tqdm(total=annotated_size)
@@ -104,7 +109,7 @@ def extract(video_path, annotation_path, tracking):
                         objects[object_id] = centroid
                         colors_values = list(tracker.colors_table.values())
                         colors[object_id] = colors_values[object_id % len(colors_values)]
-                        timeline_colors[object_id] = colors[object_id]
+                        timeline["colors"][object_id] = colors[object_id]
 
                 if tracking:
                     objects, colors = tracker.update(centroids)
@@ -119,7 +124,8 @@ def extract(video_path, annotation_path, tracking):
                         tracks_vw[animal.object_id] = cv2.VideoWriter(f"mini-scenes/{name}/{animal.object_id}.mp4",
                                                                       cv2.VideoWriter_fourcc("m", "p", "4", "v"),
                                                                       29.97, (scene_width, scene_height))
-                        timeline[animal.object_id] = [0] * annotated_size
+                        tracked_indices[animal.object_id] = 0
+                        timeline[animal.object_id] = [-1] * annotated_size
 
                 for animal in animals:
                     TrackedObject.update(tracked_objects, animal)
@@ -129,13 +135,15 @@ def extract(video_path, annotation_path, tracking):
                     scene_frame = frame.copy()
                     scene_frame = get_scene(scene_frame, animal, scene_width, scene_height)
                     tracks_vw[animal.object_id].write(scene_frame)
-                    timeline[animal.object_id][index] = 1
+                    timeline[animal.object_id][index] = tracked_indices[animal.object_id]
+                    tracked_indices[animal.object_id] += 1
 
             cv2.putText(visualization, f"Frame: {index}", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 3,
                         cv2.LINE_AA)
             cv2.imshow("extractor", cv2.resize(visualization, (original_width // 3, original_height // 3)))
             vw.write(visualization)
             key = cv2.waitKey(1)
+            timeline["main"][index] = index
             index += 1
             pbar.update(1)
 
@@ -147,12 +155,12 @@ def extract(video_path, annotation_path, tracking):
     for track_key in tracks_vw.keys():
         tracks_vw[track_key].release()
 
-    if not os.path.exists(f"mini-scenes/{name}/timeline"):
-        os.makedirs(f"mini-scenes/{name}/timeline")
+    if not os.path.exists(f"mini-scenes/{name}/metadata"):
+        os.makedirs(f"mini-scenes/{name}/metadata")
 
-    generate_timeline_image(name, timeline, timeline_colors, annotated_size)
+    generate_timeline_image(name, timeline, annotated_size)
 
-    with open(f"mini-scenes/{name}/timeline/{name}.json", "w") as file:
+    with open(f"mini-scenes/{name}/metadata/{name}.json", "w") as file:
         json.dump(timeline, file)
 
     pbar.close()
