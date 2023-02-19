@@ -39,21 +39,44 @@ def draw_id(current, image, metadata, width):
         label = f"Track #{current}"
         color = metadata["colors"][current]
 
-    thickness_out = 50
     thickness_in = 4
     size = 1.5
-    border_length = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, size, thickness_out)
     label_length = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, size, thickness_in)
 
-    cv2.putText(image, label, ((width - border_length[0][0]) // 2 + 20, 150),
-                cv2.FONT_HERSHEY_SIMPLEX, size, tuple([i + 50 for i in color]),
-                thickness_out, cv2.LINE_AA)
+    copied = image.copy()
+    cv2.rectangle(image, (width // 2 - label_length[0][0] // 2 - 50, 95),
+                  (width // 2 + label_length[0][0] // 2 + 50, 180), (255, 255, 255), -1)
     cv2.putText(image, label, ((width - label_length[0][0]) // 2, 150),
-                cv2.FONT_HERSHEY_SIMPLEX, size, tuple([i - 50 for i in color]),
-                thickness_in, cv2.LINE_AA)
+                cv2.FONT_HERSHEY_SIMPLEX, size, tuple([i - 50 for i in color]), thickness_in, cv2.LINE_AA)
+
+    return cv2.addWeighted(image, 0.4, copied, 0.6, 0.0)
 
 
-def show_info(image, width):
+def draw_actions(current, index, image, actions, metadata, width, height):
+    if current == "main":
+        return image
+
+    if actions.get(current) is None:
+        return image
+    elif actions[current].get(str(index)) is None:
+        return image
+
+    color = metadata["colors"][current]
+    label = "|".join(actions[current][str(index)].split(","))
+    thickness_in = 4
+    size = 1.5
+    label_length = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, size, thickness_in)
+
+    copied = image.copy()
+    cv2.rectangle(image, (width // 2 - label_length[0][0] // 2 - 50, height - 95),
+                  (width // 2 + label_length[0][0] // 2 + 50, height - 180), (255, 255, 255), -1)
+    cv2.putText(image, label, ((width - label_length[0][0]) // 2, height - 130),
+                cv2.FONT_HERSHEY_SIMPLEX, size, tuple([i - 50 for i in color]), thickness_in, cv2.LINE_AA)
+
+    return cv2.addWeighted(image, 0.4, copied, 0.6, 0.0)
+
+
+def draw_info(image, width):
     copied = image.copy()
     cv2.rectangle(image, (width - 600, 100), (width - 100, 340), (0, 0, 0), -1)
     cv2.putText(image, "[0-9]: Show Track #[0-9]", (width - 565, 150),
@@ -80,9 +103,10 @@ if __name__ == "__main__":
         save = bool(sys.argv[2])
 
     name = os.path.splitext(video_path.split("/")[-1])[0]
-    mini_scenes_path = f"{'/'.join(video_path.split('/')[:-1])}/{name}"
+    tracks_path = f"{'/'.join(video_path.split('/')[:-1])}/{name}"
 
-    metadata_path = f"{mini_scenes_path}/metadata/{name}.json"
+    metadata_path = f"{tracks_path}/metadata/{name}.json"
+    actions_path = f"{tracks_path}/actions"
 
     with open(metadata_path, "r") as file:
         metadata = json.load(file)
@@ -90,9 +114,17 @@ if __name__ == "__main__":
     vcs = OrderedDict()
     vcs["main"] = cv2.VideoCapture(video_path)
 
-    for file in os.listdir(mini_scenes_path):
+    for file in os.listdir(tracks_path):
         if os.path.splitext(file)[-1] == ".mp4":
-            vcs[os.path.splitext(file)[0]] = cv2.VideoCapture(f"{mini_scenes_path}/{file}")
+            vcs[os.path.splitext(file)[0]] = cv2.VideoCapture(f"{tracks_path}/{file}")
+
+    actions = OrderedDict()
+
+    if os.path.exists(actions_path):
+        for file in os.listdir(actions_path):
+            if os.path.splitext(file)[-1] == ".json":
+                with open(f"{actions_path}/{file}", "r") as json_file:
+                    actions[os.path.splitext(file)[0]] = json.load(json_file)
 
     index = 0
     cv2.namedWindow("TrackPlayer")
@@ -108,10 +140,11 @@ if __name__ == "__main__":
                              29.97, (target_width, target_height))
 
     while vc.isOpened():
-        if metadata[current][index] < 0:
-            current = "main"
-            vc = vcs[current]
-            vc.set(cv2.CAP_PROP_POS_FRAMES, metadata[current][index])
+        if index < len(metadata[current]):
+            if metadata[current][index] < 0:
+                current = "main"
+                vc = vcs[current]
+                vc.set(cv2.CAP_PROP_POS_FRAMES, metadata[current][index])
 
         returned, frame = vc.read()
 
@@ -121,8 +154,9 @@ if __name__ == "__main__":
             if current != "main":
                 visualization = pad(visualization, target_width, target_height)
 
-            draw_id(current, visualization, metadata, target_width)
-            visualization = show_info(visualization, target_width)
+            visualization = draw_id(current, visualization, metadata, target_width)
+            visualization = draw_actions(current, index, visualization, actions, metadata, target_width, target_height)
+            visualization = draw_info(visualization, target_width)
             trackbar_position = cv2.getTrackbarPos(name, "TrackPlayer")
             cv2.setTrackbarPos(name, "TrackPlayer", index)
 

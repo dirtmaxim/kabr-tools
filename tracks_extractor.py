@@ -171,7 +171,7 @@ def extract(video_path, annotation_path, tracking):
 
 if __name__ == "__main__":
     if len(sys.argv) != 3 and len(sys.argv) != 4:
-        print("python extractor.py path_to_video path_to_annotation [tracking]")
+        print("python tracks_extractor.py path_to_videos path_to_annotations [tracking]")
         exit(0)
     elif len(sys.argv) == 3:
         video = sys.argv[1]
@@ -188,7 +188,7 @@ if __name__ == "__main__":
         videos = []
         annotations = []
 
-        for root, dirs, files in os.walk(annotation, topdown=False):
+        for root, dirs, files in os.walk(annotation):
             for file in files:
                 videos.append(os.path.join(video + root[len(annotation):], os.path.splitext(file)[0] + ".mp4"))
                 annotations.append(os.path.join(root, file))
