@@ -53,26 +53,20 @@ class Draw:
                     cv2.FONT_HERSHEY_SIMPLEX, size, tuple([i - 100 for i in animal.color]), thickness_in, cv2.LINE_AA)
 
     @staticmethod
-    def animal_id(image, animal, scene=False):
-        label = f"#{animal.object_id}"
+    def animal_id(image, animal):
+        if animal.class_ is not None and animal.confidence is not None:
+            label = f"#{animal.object_id}: {animal.confidence} {animal.class_}"
+        else:
+            label = f"#{animal.object_id}"
+
         border_length = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 25)
         label_length = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
 
-        if not scene:
-            cv2.putText(image, label,
-                        (np.max([0, animal.centroid[0] - border_length[0][0] // 2 + 10]),
-                         np.max([0, animal.centroid[1] - 30])),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, tuple([i + 30 for i in animal.color]), 25, cv2.LINE_AA)
-            cv2.putText(image, label,
-                        (np.max([0, animal.centroid[0] - label_length[0][0] // 2]),
-                         np.max([0, animal.centroid[1] - 30])),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, tuple([i - 30 for i in animal.color]), 2, cv2.LINE_AA)
-        else:
-            cv2.putText(image, label,
-                        (np.max([0, animal.centroid[0] - border_length[0][0] // 2 + 10]),
-                         np.max([0, animal.centroid[1] - 150])),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, tuple([i + 30 for i in animal.color]), 25, cv2.LINE_AA)
-            cv2.putText(image, label,
-                        (np.max([0, animal.centroid[0] - label_length[0][0] // 2]),
-                         np.max([0, animal.centroid[1] - 150])),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, tuple([i - 30 for i in animal.color]), 2, cv2.LINE_AA)
+        cv2.putText(image, label,
+                    (np.max([0, animal.centroid[0] - border_length[0][0] // 2 + 10]),
+                     np.max([0, animal.centroid[1] - 30])),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, tuple([i + 30 for i in animal.color]), 25, cv2.LINE_AA)
+        cv2.putText(image, label,
+                    (np.max([0, animal.centroid[0] - label_length[0][0] // 2]),
+                     np.max([0, animal.centroid[1] - 30])),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, tuple([i - 30 for i in animal.color]), 2, cv2.LINE_AA)

@@ -67,15 +67,16 @@ def extract(video_path, annotation_path, tracking):
                                              int(float(box.attrib["xbr"])),
                                              int(float(box.attrib["ybr"]))]
 
-    if not os.path.exists(f"mini-scenes"):
-        os.makedirs(f"mini-scenes")
-
-    annotated_size = int("".join(root.find("meta").find("task").find("size").itertext()))
     name = os.path.splitext(video_path.split("/")[-1])[0]
+    annotated_size = int("".join(root.find("meta").find("task").find("size").itertext()))
     scene_width, scene_height = 400, 300
     vc = cv2.VideoCapture(video_path)
     original_width, original_height = int(vc.get(cv2.CAP_PROP_FRAME_WIDTH)), int(vc.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    vw = cv2.VideoWriter(f"mini-scenes/{name}.mp4", cv2.VideoWriter_fourcc("m", "p", "4", "v"), 29.97,
+
+    if not os.path.exists(f"mini-scenes/{name}"):
+        os.makedirs(f"mini-scenes/{name}")
+
+    vw = cv2.VideoWriter(f"mini-scenes/{name}/{name}.mp4", cv2.VideoWriter_fourcc("m", "p", "4", "v"), 29.97,
                          (original_width, original_height))
     tracker = Tracker(max_disappeared=40, max_distance=200)
     tracked_objects = {}

@@ -7,11 +7,14 @@ import cv2
 
 
 def on_slider_change(value):
-    global index, vcs, current, trackbar_position
+    global index, vcs, current, trackbar_position, paused, updated
     index = value
 
     if abs(trackbar_position - index) > 10:
         vcs[current].set(cv2.CAP_PROP_POS_FRAMES, metadata[current][index])
+
+        if paused:
+            updated = True
 
 
 def pad(image, width, height):
@@ -29,6 +32,19 @@ def pad(image, width, height):
         padded = cv2.copyMakeBorder(image, pad_size, pad_size, 0, 0, cv2.BORDER_CONSTANT, value=(0, 0, 0))
 
     return padded
+
+
+def draw_aim(current, image):
+    if current == "main":
+        return image
+
+    copied = image.copy()
+    x = image.shape[1] // 2
+    y = image.shape[0] // 2
+    cv2.line(image, (x - 20, y), (x + 20, y), (127, 127, 127), 2)
+    cv2.line(image, (x, y - 20), (x, y + 20), (127, 127, 127), 2)
+
+    return cv2.addWeighted(image, 0.4, copied, 0.6, 0.0)
 
 
 def draw_id(current, image, metadata, width):
@@ -93,30 +109,30 @@ def draw_info(image, width):
 
 if __name__ == "__main__":
     if len(sys.argv) != 2 and len(sys.argv) != 3:
-        print("python player.py path_to_video [save]")
+        print("python player.py path_to_folder [save]")
         exit(0)
     elif len(sys.argv) == 2:
-        video_path = sys.argv[1]
+        folder = sys.argv[1]
         save = False
     elif len(sys.argv) == 3:
-        video_path = sys.argv[1]
+        folder = sys.argv[1]
         save = bool(sys.argv[2])
 
-    name = os.path.splitext(video_path.split("/")[-1])[0]
-    tracks_path = f"{'/'.join(video_path.split('/')[:-1])}/{name}"
+    name = folder.split("/")[-1]
 
-    metadata_path = f"{tracks_path}/metadata/{name}.json"
-    actions_path = f"{tracks_path}/actions"
+    metadata_path = f"{folder}/metadata/{name}.json"
+    actions_path = f"{folder}/actions"
 
     with open(metadata_path, "r") as file:
         metadata = json.load(file)
 
     vcs = OrderedDict()
-    vcs["main"] = cv2.VideoCapture(video_path)
+    vcs["main"] = cv2.VideoCapture(f"{folder}/{name}.mp4")
 
-    for file in os.listdir(tracks_path):
+    for file in os.listdir(folder):
         if os.path.splitext(file)[-1] == ".mp4":
-            vcs[os.path.splitext(file)[0]] = cv2.VideoCapture(f"{tracks_path}/{file}")
+            if not os.path.splitext(file)[0].startswith(name):
+                vcs[os.path.splitext(file)[0]] = cv2.VideoCapture(f"{folder}/{file}")
 
     actions = OrderedDict()
 
@@ -134,9 +150,10 @@ if __name__ == "__main__":
     target_width = int(vc.get(cv2.CAP_PROP_FRAME_WIDTH))
     target_height = int(vc.get(cv2.CAP_PROP_FRAME_HEIGHT))
     letter2hotkey = {41: "10", 33: "11", 64: "12", 35: "13", 36: "14", 37: "15", 94: "16", 38: "17", 42: "18", 40: "19"}
+    paused, updated = False, False
 
     if save:
-        vw = cv2.VideoWriter(f"{name}_demo.mp4", cv2.VideoWriter_fourcc("m", "p", "4", "v"),
+        vw = cv2.VideoWriter(f"{folder}/{name}_demo.mp4", cv2.VideoWriter_fourcc("m", "p", "4", "v"),
                              29.97, (target_width, target_height))
 
     while vc.isOpened():
@@ -149,11 +166,13 @@ if __name__ == "__main__":
         returned, frame = vc.read()
 
         if returned:
+            updated = False
             visualization = frame.copy()
 
             if current != "main":
                 visualization = pad(visualization, target_width, target_height)
 
+            visualization = draw_aim(current, visualization)
             visualization = draw_id(current, visualization, metadata, target_width)
             visualization = draw_actions(current, index, visualization, actions, metadata, target_width, target_height)
             visualization = draw_info(visualization, target_width)
@@ -173,16 +192,20 @@ if __name__ == "__main__":
 
             if key == 27:
                 break
-            elif key == 32:
+            elif key == 32 or paused:
+                paused = True
                 flag = False
 
                 while True:
-                    key = cv2.waitKey(0)
+                    key = cv2.waitKey(1)
 
                     if key == 32:
+                        paused = False
                         break
                     elif key == 27:
                         flag = True
+                        break
+                    elif updated:
                         break
 
                 if flag:

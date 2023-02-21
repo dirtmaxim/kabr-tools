@@ -33,9 +33,6 @@ def get_scene(image, animal, scene_width, scene_height):
 
         padded = cv2.copyMakeBorder(crop, pad_top, pad_bottom, pad_left, pad_right, cv2.BORDER_CONSTANT,
                                     value=(0, 0, 0))
-        x = width
-        y = height
-        cv2.line(padded, (x - 7, y), (x + 7, y), (0, 255, 255), 1)
-        cv2.line(padded, (x, y - 7), (x, y + 7), (0, 255, 255), 1)
-
         return padded
+    else:
+        return image

@@ -7,9 +7,16 @@ class Animal:
         self.object_id = object_id
         self.centroid = centroid
         self.color = color
+        self.class_ = None
+        self.confidence = None
 
         if detection is not None:
-            self.detection = (int(detection[0]), int(detection[1]), int(detection[2]), int(detection[3]))
+            if len(detection) >= 6:
+                self.detection = (int(detection[0]), int(detection[1]), int(detection[2]), int(detection[3]))
+                self.confidence = detection[4]
+                self.class_ = detection[5]
+            elif len(detection) >= 4:
+                self.detection = (int(detection[0]), int(detection[1]), int(detection[2]), int(detection[3]))
         else:
             self.detection = None
 

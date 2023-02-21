@@ -64,7 +64,7 @@ if __name__ == "__main__":
     videos = []
     annotations = []
 
-    for root, dirs, files in os.walk(annotation_path, topdown=False):
+    for root, dirs, files in os.walk(annotation_path):
         for file in files:
             videos.append(os.path.join(video_path + root[len(annotation_path):], os.path.splitext(file)[0] + ".mp4"))
             annotations.append(os.path.join(root, file))
