@@ -90,8 +90,7 @@ if __name__ == "__main__":
                     if animal.class_ is not None:
                         if tracks_history.get(animal.object_id) is None:
                             tracks_history[animal.object_id] = {}
-
-                        tracks_history[animal.object_id]["class_"] = animal.class_
+                            tracks_history[animal.object_id]["class_"] = animal.class_
 
                     if animal.detection is not None:
                         if tracks_history.get(animal.object_id) is None:
@@ -156,7 +155,8 @@ if __name__ == "__main__":
                                             xtl=box["xtl"], ytl=box["ytl"], xbr=box["xbr"], ybr=box["ybr"], z_order="0")
                     xml_track.append(xml_box)
 
-                xml_page.append(xml_track)
+                if len(boxes) > 0:
+                    xml_page.append(xml_track)
             else:
                 print(f"Auto-removed track #{track_id}.")
 
