@@ -13,16 +13,14 @@ from src.draw import Draw
 from tqdm import tqdm
 
 
-def generate_timeline_image(name, timeline, annotated_size):
-    colors = timeline["colors"]
-    del timeline["colors"]
-    timeline_image = np.zeros(shape=(len(timeline.keys()) * 100, annotated_size, 3), dtype=np.uint8)
+def generate_timeline_image(name, folder, timeline, annotated_size):
+    timeline_image = np.zeros(shape=(len(timeline["tracks"].keys()) * 100, annotated_size, 3), dtype=np.uint8)
 
-    for i, (key, value) in enumerate(timeline.items()):
-        if colors.get(key) is None:
+    for i, (key, value) in enumerate(timeline["tracks"].items()):
+        if timeline["colors"].get(key) is None:
             color = (127, 127, 127)
         else:
-            color = colors[key]
+            color = timeline["colors"][key]
 
         binary = np.array(value, dtype=np.int32)
         binary[binary >= 0] = 1
@@ -35,17 +33,16 @@ def generate_timeline_image(name, timeline, annotated_size):
 
     timeline_resized = cv2.resize(timeline_image, (1000, timeline_image.shape[0]))
 
-    for i, (key, value) in enumerate(timeline.items()):
-        if colors.get(key) is None:
+    for i, (key, value) in enumerate(timeline["tracks"].items()):
+        if timeline["colors"].get(key) is None:
             color = (127, 127, 127)
         else:
-            color = colors[key]
+            color = timeline["colors"][key]
 
         cv2.putText(timeline_resized, str(key), (30, i * 100 + 50),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, tuple([j - 30 for j in color]), 2, cv2.LINE_AA)
 
-    timeline["colors"] = colors
-    cv2.imwrite(f"mini-scenes/{name}/metadata/{name}.jpg", timeline_resized)
+    cv2.imwrite(f"mini-scenes/{folder}/metadata/{name}.jpg", timeline_resized)
 
 
 def extract(video_path, annotation_path, tracking):
@@ -68,22 +65,25 @@ def extract(video_path, annotation_path, tracking):
                                              int(float(box.attrib["ybr"]))]
 
     name = os.path.splitext(video_path.split("/")[-1])[0]
+    folder = os.path.splitext("|".join(video_path.split("/")[-3:]))[0]
     annotated_size = int("".join(root.find("meta").find("task").find("size").itertext()))
     scene_width, scene_height = 400, 300
     vc = cv2.VideoCapture(video_path)
     original_width, original_height = int(vc.get(cv2.CAP_PROP_FRAME_WIDTH)), int(vc.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-    if not os.path.exists(f"mini-scenes/{name}"):
-        os.makedirs(f"mini-scenes/{name}")
+    if not os.path.exists(f"mini-scenes/{folder}"):
+        os.makedirs(f"mini-scenes/{folder}")
 
-    vw = cv2.VideoWriter(f"mini-scenes/{name}/{name}.mp4", cv2.VideoWriter_fourcc("m", "p", "4", "v"), 29.97,
+    vw = cv2.VideoWriter(f"mini-scenes/{folder}/{name}.mp4", cv2.VideoWriter_fourcc("m", "p", "4", "v"), 29.97,
                          (original_width, original_height))
     tracker = Tracker(max_disappeared=40, max_distance=200)
     tracked_objects = {}
     index = 0
     tracked_indices = OrderedDict()
     timeline = OrderedDict()
-    timeline["main"] = [-1] * annotated_size
+    timeline["original"] = video_path
+    timeline["tracks"] = OrderedDict()
+    timeline["tracks"]["main"] = [-1] * annotated_size
     timeline["colors"] = {}
     vc.set(cv2.CAP_PROP_POS_FRAMES, index)
     tracks_vw = dict()
@@ -119,14 +119,14 @@ def extract(video_path, annotation_path, tracking):
 
                 for animal in animals:
                     if tracks_vw.get(animal.object_id) is None:
-                        if not os.path.exists(f"mini-scenes/{name}"):
-                            os.makedirs(f"mini-scenes/{name}")
+                        if not os.path.exists(f"mini-scenes/{folder}"):
+                            os.makedirs(f"mini-scenes/{folder}")
 
-                        tracks_vw[animal.object_id] = cv2.VideoWriter(f"mini-scenes/{name}/{animal.object_id}.mp4",
+                        tracks_vw[animal.object_id] = cv2.VideoWriter(f"mini-scenes/{folder}/{animal.object_id}.mp4",
                                                                       cv2.VideoWriter_fourcc("m", "p", "4", "v"),
                                                                       29.97, (scene_width, scene_height))
                         tracked_indices[animal.object_id] = 0
-                        timeline[animal.object_id] = [-1] * annotated_size
+                        timeline["tracks"][animal.object_id] = [-1] * annotated_size
 
                 for animal in animals:
                     TrackedObject.update(tracked_objects, animal)
@@ -136,15 +136,14 @@ def extract(video_path, annotation_path, tracking):
                     scene_frame = frame.copy()
                     scene_frame = get_scene(scene_frame, animal, scene_width, scene_height)
                     tracks_vw[animal.object_id].write(scene_frame)
-                    timeline[animal.object_id][index] = tracked_indices[animal.object_id]
+                    timeline["tracks"][animal.object_id][index] = tracked_indices[animal.object_id]
                     tracked_indices[animal.object_id] += 1
 
-            cv2.putText(visualization, f"Frame: {index}", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 3,
-                        cv2.LINE_AA)
-            cv2.imshow("extractor", cv2.resize(visualization, (original_width // 3, original_height // 3)))
+            cv2.imshow("tracks_extractor", cv2.resize(visualization,
+                                                      (int(original_width // 2.5), int(original_height // 2.5))))
             vw.write(visualization)
             key = cv2.waitKey(1)
-            timeline["main"][index] = index
+            timeline["tracks"]["main"][index] = index
             index += 1
             pbar.update(1)
 
@@ -156,12 +155,12 @@ def extract(video_path, annotation_path, tracking):
     for track_key in tracks_vw.keys():
         tracks_vw[track_key].release()
 
-    if not os.path.exists(f"mini-scenes/{name}/metadata"):
-        os.makedirs(f"mini-scenes/{name}/metadata")
+    if not os.path.exists(f"mini-scenes/{folder}/metadata"):
+        os.makedirs(f"mini-scenes/{folder}/metadata")
 
-    generate_timeline_image(name, timeline, annotated_size)
+    generate_timeline_image(name, folder, timeline, annotated_size)
 
-    with open(f"mini-scenes/{name}/metadata/{name}.json", "w") as file:
+    with open(f"mini-scenes/{folder}/metadata/{name}.json", "w") as file:
         json.dump(timeline, file)
 
     pbar.close()

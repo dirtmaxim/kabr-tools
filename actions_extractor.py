@@ -11,7 +11,6 @@ def extract(annotation_path):
     annotated = dict()
 
     for track in root.iterfind("track"):
-
         for entry in track.iter("points"):
             frame_id = int(entry.attrib["frame"])
             behavior = "".join(entry.find("attribute").itertext())
@@ -21,7 +20,7 @@ def extract(annotation_path):
 
             annotated[frame_id] = behavior
 
-    video_path_id = annotation_path.split("/")[-2]
+    video_path_id = "|".join(annotation_path.split("/")[-4:-1])
     track_path_id = os.path.splitext(annotation_path.split("/")[-1])[0]
 
     if not os.path.exists(f"mini-scenes/{video_path_id}/actions"):

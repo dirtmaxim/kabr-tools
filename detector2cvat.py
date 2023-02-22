@@ -28,12 +28,13 @@ if __name__ == "__main__":
             if os.path.splitext(file)[1] == ".mp4":
                 videos.append(f"{root}/{file}")
 
-    model = YOLOv8("yolov8x.pt", imgsz=3840, conf=0.5)
+    model = YOLOv8("yolov8x.pt", imgsz=1536, conf=0.5)
 
     for i, video in enumerate(videos):
-        name = video.split("/")[-1]
-        output_path = f"{path_to_save}/{os.path.splitext(video[len(path_to_videos) + 1:])[0]}.xml"
-        output_folder = "/".join(output_path.split("/")[:-1])
+        name = os.path.splitext(video.split("/")[-1])[0]
+
+        output_folder = path_to_save + os.sep + "/".join(os.path.splitext(video)[0].split("/")[-3:-1])
+        output_path = f"{output_folder}/{name}.xml"
         print(f"{i + 1}/{len(videos)}: {video} -> {output_path}")
 
         if not os.path.exists(output_folder):
@@ -45,8 +46,10 @@ if __name__ == "__main__":
         height = int(vc.get(cv2.CAP_PROP_FRAME_HEIGHT))
         vw = cv2.VideoWriter(f"{output_folder}/{name}_demo.mp4", cv2.VideoWriter_fourcc("m", "p", "4", "v"),
                              29.97, (width, height))
-        tracker = Tracker(max_disappeared=200, max_distance=200)
+        max_disappeared = 40
+        tracker = Tracker(max_disappeared=max_disappeared, max_distance=300)
         tracked_objects = {}
+        tracks_history = {}
 
         # Create CVAT for video 1.1 XML.
         xml_page = etree.Element("annotations")
@@ -84,20 +87,37 @@ if __name__ == "__main__":
                     Draw.bounding_box(visualization, animal)
                     Draw.animal_id(visualization, animal)
 
-                for animal in animals:
-                    if annotated.get((str(animal.object_id), animal.class_)) is None:
-                        annotated[(str(animal.object_id), animal.class_)] = []
+                    if animal.class_ is not None:
+                        if tracks_history.get(animal.object_id) is None:
+                            tracks_history[animal.object_id] = {}
+
+                        tracks_history[animal.object_id]["class_"] = animal.class_
 
                     if animal.detection is not None:
-                        annotated[(str(animal.object_id), animal.class_)].append({"frame": str(index),
-                                                                                  "xtl": str(
-                                                                                      float(animal.detection[0])),
-                                                                                  "ytl": str(
-                                                                                      float(animal.detection[1])),
-                                                                                  "xbr": str(
-                                                                                      float(animal.detection[2])),
-                                                                                  "ybr": str(
-                                                                                      float(animal.detection[3]))})
+                        if tracks_history.get(animal.object_id) is None:
+                            tracks_history[animal.object_id] = {}
+
+                        tracks_history[animal.object_id]["detection"] = animal.detection
+
+                for animal in animals:
+                    if animal.class_ is not None:
+                        class_ = animal.class_
+                    else:
+                        class_ = tracks_history[animal.object_id]["class_"]
+
+                    if animal.detection is not None:
+                        detection = animal.detection
+                    else:
+                        detection = tracks_history[animal.object_id]["detection"]
+
+                    if annotated.get((str(animal.object_id), class_)) is None:
+                        annotated[(str(animal.object_id), class_)] = []
+
+                    annotated[(str(animal.object_id), class_)].append({"frame": str(index),
+                                                                       "xtl": str(float(detection[0])),
+                                                                       "ytl": str(float(detection[1])),
+                                                                       "xbr": str(float(detection[2])),
+                                                                       "ybr": str(float(detection[3]))})
 
                 cv2.putText(visualization, f"Frame: {index}", (50, 50), cv2.FONT_HERSHEY_SIMPLEX,
                             0.8, (255, 255, 255), 3, cv2.LINE_AA)
@@ -119,14 +139,26 @@ if __name__ == "__main__":
 
         # Save annotations.
         for (track_id, label), boxes in annotated.items():
-            xml_track = etree.Element("track", id=track_id, label=label, source="manual")
+            # Remove short tracks.
+            if len(tracked_objects[int(track_id)].centroids) > max_disappeared * 2 + 1:
+                xml_track = etree.Element("track", id=track_id, label=label, source="manual")
+                # Compensate tracker's last boxes.
+                boxes = boxes[:-max_disappeared]
 
-            for box in boxes:
-                xml_box = etree.Element("box", frame=box["frame"], outside="0", occluded="0", keyframe="1",
-                                        xtl=box["xtl"], ytl=box["ytl"], xbr=box["xbr"], ybr=box["ybr"], z_order="0")
-                xml_track.append(xml_box)
+                for j, box in enumerate(boxes):
+                    # Mark the end of the track.
+                    if j < len(boxes) - 1:
+                        outside = "0"
+                    else:
+                        outside = "1"
 
-            xml_page.append(xml_track)
+                    xml_box = etree.Element("box", frame=box["frame"], outside=outside, occluded="0", keyframe="1",
+                                            xtl=box["xtl"], ytl=box["ytl"], xbr=box["xbr"], ybr=box["ybr"], z_order="0")
+                    xml_track.append(xml_box)
+
+                xml_page.append(xml_track)
+            else:
+                print(f"Auto-removed track #{track_id}.")
 
         xml_document = etree.ElementTree(xml_page)
         xml_document.write(output_path, xml_declaration=True, pretty_print=True, encoding="utf-8")

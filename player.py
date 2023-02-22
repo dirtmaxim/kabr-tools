@@ -11,7 +11,7 @@ def on_slider_change(value):
     index = value
 
     if abs(trackbar_position - index) > 10:
-        vcs[current].set(cv2.CAP_PROP_POS_FRAMES, metadata[current][index])
+        vcs[current].set(cv2.CAP_PROP_POS_FRAMES, metadata["tracks"][current][index])
 
         if paused:
             updated = True
@@ -107,6 +107,41 @@ def draw_info(image, width):
     return cv2.addWeighted(image, 0.4, copied, 0.6, 0.0)
 
 
+def hotkey(key):
+    global current, metadata, vc, letter2hotkey
+
+    mapped = letter2hotkey[key]
+
+    if mapped == "main":
+        current = mapped
+        vc = vcs[current]
+        vc.set(cv2.CAP_PROP_POS_FRAMES, metadata["tracks"][current][index])
+    elif mapped in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]:
+        if metadata["tracks"].get(mapped) is not None:
+            if metadata["tracks"][mapped][index] != -1:
+                current = mapped
+                vc = vcs[current]
+
+                if index < len(metadata["tracks"][mapped]):
+                    if metadata["tracks"][mapped][index] < 0:
+                        current = "main"
+                        vc = vcs[current]
+
+                    vc.set(cv2.CAP_PROP_POS_FRAMES, metadata["tracks"][current][index])
+    elif mapped in ["10", "11", "12", "13", "14", "15", "16", "17", "18", "19"]:
+        if metadata["tracks"].get(mapped) is not None:
+            if metadata["tracks"][mapped][index] != -1:
+                current = mapped
+                vc = vcs[current]
+
+                if index < len(metadata["tracks"][mapped]):
+                    if metadata["tracks"][mapped][index] < 0:
+                        current = "main"
+                        vc = vcs[current]
+
+                    vc.set(cv2.CAP_PROP_POS_FRAMES, metadata["tracks"][current][index])
+
+
 if __name__ == "__main__":
     if len(sys.argv) != 2 and len(sys.argv) != 3:
         print("python player.py path_to_folder [save]")
@@ -118,7 +153,7 @@ if __name__ == "__main__":
         folder = sys.argv[1]
         save = bool(sys.argv[2])
 
-    name = folder.split("/")[-1]
+    name = folder.split("/")[-1].split('|')[-1]
 
     metadata_path = f"{folder}/metadata/{name}.json"
     actions_path = f"{folder}/actions"
@@ -144,12 +179,14 @@ if __name__ == "__main__":
 
     index = 0
     cv2.namedWindow("TrackPlayer")
-    cv2.createTrackbar(name, "TrackPlayer", index, len(metadata["main"]) - 1, on_slider_change)
+    cv2.createTrackbar(name, "TrackPlayer", index, len(metadata["tracks"]["main"]) - 1, on_slider_change)
     current = "main"
     vc = vcs[current]
     target_width = int(vc.get(cv2.CAP_PROP_FRAME_WIDTH))
     target_height = int(vc.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    letter2hotkey = {41: "10", 33: "11", 64: "12", 35: "13", 36: "14", 37: "15", 94: "16", 38: "17", 42: "18", 40: "19"}
+    letter2hotkey = {13: "main", 48: "0", 49: "1", 50: "2", 51: "3", 52: "4", 53: "5", 54: "6", 55: "7", 56: "8",
+                     57: "9", 41: "10", 33: "11", 64: "12", 35: "13", 36: "14", 37: "15", 94: "16", 38: "17",
+                     42: "18", 40: "19"}
     paused, updated = False, False
 
     if save:
@@ -157,11 +194,11 @@ if __name__ == "__main__":
                              29.97, (target_width, target_height))
 
     while vc.isOpened():
-        if index < len(metadata[current]):
-            if metadata[current][index] < 0:
+        if index < len(metadata["tracks"][current]):
+            if metadata["tracks"][current][index] < 0:
                 current = "main"
                 vc = vcs[current]
-                vc.set(cv2.CAP_PROP_POS_FRAMES, metadata[current][index])
+                vc.set(cv2.CAP_PROP_POS_FRAMES, metadata["tracks"][current][index])
 
         returned, frame = vc.read()
 
@@ -178,10 +215,8 @@ if __name__ == "__main__":
             visualization = draw_info(visualization, target_width)
             trackbar_position = cv2.getTrackbarPos(name, "TrackPlayer")
             cv2.setTrackbarPos(name, "TrackPlayer", index)
-
-            if current != "main":
-                cv2.putText(visualization, f"Frame: {index}", (50, 50), cv2.FONT_HERSHEY_SIMPLEX,
-                            0.8, (255, 255, 255), 3, cv2.LINE_AA)
+            cv2.putText(visualization, f"Frame: {index}", (50, 50), cv2.FONT_HERSHEY_SIMPLEX,
+                        0.8, (255, 255, 255), 3, cv2.LINE_AA)
 
             cv2.imshow("TrackPlayer", cv2.resize(visualization, (int(target_width // 2.5), int(target_height // 2.5))))
 
@@ -205,39 +240,21 @@ if __name__ == "__main__":
                     elif key == 27:
                         flag = True
                         break
+                    elif letter2hotkey.get(key) is not None:
+                        if letter2hotkey[key] in vcs.keys():
+                            if metadata["tracks"][letter2hotkey[key]][index] >= 0:
+                                hotkey(key)
+                                break
                     elif updated:
                         break
 
                 if flag:
                     break
-            elif key == 13:
-                current = "main"
-                vc = vcs[current]
-                vc.set(cv2.CAP_PROP_POS_FRAMES, metadata[current][index])
-            elif 48 <= key <= 57:
-                if metadata.get(chr(key)) is not None:
-                    if metadata[chr(key)][index] != -1:
-                        current = chr(key)
-                        vc = vcs[current]
+            elif letter2hotkey.get(key) is not None:
+                if letter2hotkey[key] in vcs.keys():
+                    if metadata["tracks"][letter2hotkey[key]][index] >= 0:
+                        hotkey(key)
 
-                        if index < len(metadata[chr(key)]):
-                            if metadata[chr(key)][index] < 0:
-                                current = "main"
-                                vc = vcs[current]
-
-                            vc.set(cv2.CAP_PROP_POS_FRAMES, metadata[current][index])
-            elif key in [33, 64, 35, 36, 37, 94, 38, 42, 40, 41]:
-                if metadata.get(letter2hotkey[key]) is not None:
-                    if metadata[letter2hotkey[key]][index] != -1:
-                        current = letter2hotkey[key]
-                        vc = vcs[current]
-
-                        if index < len(metadata[chr(key)]):
-                            if metadata[chr(key)][index] < 0:
-                                current = "main"
-                                vc = vcs[current]
-
-                            vc.set(cv2.CAP_PROP_POS_FRAMES, metadata[current][index])
             index += 1
         else:
             if current == "main":
@@ -245,7 +262,7 @@ if __name__ == "__main__":
             else:
                 current = "main"
                 vc = vcs[current]
-                vc.set(cv2.CAP_PROP_POS_FRAMES, metadata[current][index])
+                vc.set(cv2.CAP_PROP_POS_FRAMES, metadata["tracks"][current][index])
 
     if save:
         vw.release()

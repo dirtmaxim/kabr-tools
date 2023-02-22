@@ -3,11 +3,10 @@ from ultralytics import YOLO
 
 
 class YOLOv8:
-    def __init__(self, weights="yolov8x.pt", imgsz=640, conf=0.5):
+    def __init__(self, weights="yolov8x.pt", imgsz=1536, conf=0.5):
         self.conf = conf
         self.imgsz = imgsz
         self.model = YOLO(weights)
-        print("Hello1")
         self.names = self.model.names
 
     def forward(self, image):
@@ -28,9 +27,15 @@ class YOLOv8:
                     bounding_box[2] = int(bounding_box[2] * width)
                     bounding_box[3] = int(bounding_box[3] * height)
                     confidence = float(f"{confidence:.2f}")
+
+                    if self.names[class_] == "horse":
+                        label = "Zebra"
+                    else:
+                        label = self.names[class_].capitalize()
+
                     filtered.append(
                         [bounding_box[0], bounding_box[1], bounding_box[2], bounding_box[3],
-                         confidence, self.names[class_].capitalize()])
+                         confidence, label])
 
         return filtered
 
