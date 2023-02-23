@@ -34,5 +34,5 @@ detector2cvat.py:\
 Detect objects with Ultralytics YOLO detections, apply SORT tracking and convert tracks to CVAT format.
 
 ```
-python detector2cvat path_to_videos path_to_save
+python detector2cvat.py path_to_videos path_to_save
 ```
