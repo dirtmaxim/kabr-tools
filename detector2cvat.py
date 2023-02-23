@@ -28,7 +28,7 @@ if __name__ == "__main__":
             if os.path.splitext(file)[1] == ".mp4":
                 videos.append(f"{root}/{file}")
 
-    model = YOLOv8("yolov8x.pt", imgsz=1536, conf=0.5)
+    model = YOLOv8(weights="yolov8x.pt", imgsz=3840, conf=0.5)
 
     for i, video in enumerate(videos):
         name = os.path.splitext(video.split("/")[-1])[0]
@@ -106,8 +106,11 @@ if __name__ == "__main__":
 
                     if animal.detection is not None:
                         detection = animal.detection
+                        keyframe = "1"
                     else:
+                        # keyframe=0 allows CVAT to interpolate missed frames automatically.
                         detection = tracks_history[animal.object_id]["detection"]
+                        keyframe = "0"
 
                     if annotated.get((str(animal.object_id), class_)) is None:
                         annotated[(str(animal.object_id), class_)] = []
@@ -116,7 +119,8 @@ if __name__ == "__main__":
                                                                        "xtl": str(float(detection[0])),
                                                                        "ytl": str(float(detection[1])),
                                                                        "xbr": str(float(detection[2])),
-                                                                       "ybr": str(float(detection[3]))})
+                                                                       "ybr": str(float(detection[3])),
+                                                                       "keyframe": keyframe})
 
                 cv2.putText(visualization, f"Frame: {index}", (50, 50), cv2.FONT_HERSHEY_SIMPLEX,
                             0.8, (255, 255, 255), 3, cv2.LINE_AA)
@@ -151,8 +155,9 @@ if __name__ == "__main__":
                     else:
                         outside = "1"
 
-                    xml_box = etree.Element("box", frame=box["frame"], outside=outside, occluded="0", keyframe="1",
-                                            xtl=box["xtl"], ytl=box["ytl"], xbr=box["xbr"], ybr=box["ybr"], z_order="0")
+                    xml_box = etree.Element("box", frame=box["frame"], outside=outside, occluded="0",
+                                            keyframe=box["keyframe"], xtl=box["xtl"], ytl=box["ytl"],
+                                            xbr=box["xbr"], ybr=box["ybr"], z_order="0")
                     xml_track.append(xml_box)
 
                 if len(boxes) > 0:
