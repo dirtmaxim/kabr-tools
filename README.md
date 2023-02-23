@@ -3,7 +3,7 @@
 This repository contains tool for working with data for annotating animal behavior.
 
 
-![](https://user-images.githubusercontent.com/11778655/220793356-60ad0253-865c-4de0-9ee7-9c08a3fd3927.png)
+![](https://user-images.githubusercontent.com/11778655/220999935-dd190898-7cbc-4e83-acfd-ce9d2b7d24e5.png)
 
 tracks_extractor.py:\
 Extract mini-scenes from CVAT tracks.
