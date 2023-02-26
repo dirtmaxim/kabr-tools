@@ -21,6 +21,11 @@ if __name__ == "__main__":
     for root, dirs, files in os.walk(path_to_videos):
         for file in files:
             if os.path.splitext(file)[1] == ".mp4":
+                folder = root.split("/")[-1]
+
+                if folder.startswith("!"):
+                    continue
+
                 videos.append(f"{root}/{file}")
 
     yolo = YOLOv8(weights="yolov8x.pt", imgsz=3840, conf=0.5)
