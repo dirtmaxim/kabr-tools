@@ -1,7 +1,7 @@
 import os
 import sys
 import json
-import numpy as np
+from lxml import etree
 from collections import OrderedDict
 import cv2
 
@@ -23,12 +23,12 @@ def pad(image, width, height):
     if shape_0 < shape_1:
         new_width = int((height / shape_0) * shape_1)
         pad_size = (width - new_width) // 2
-        image = cv2.resize(image, (new_width, height))
+        image = cv2.resize(image, (new_width, height), interpolation=cv2.INTER_AREA)
         padded = cv2.copyMakeBorder(image, 0, 0, pad_size, pad_size, cv2.BORDER_CONSTANT, value=(0, 0, 0))
     else:
         new_height = int((width / shape_1) * shape_0)
         pad_size = (height - new_height) // 2
-        image = cv2.resize(image, (width, new_height))
+        image = cv2.resize(image, (width, new_height), interpolation=cv2.INTER_AREA)
         padded = cv2.copyMakeBorder(image, pad_size, pad_size, 0, 0, cv2.BORDER_CONSTANT, value=(0, 0, 0))
 
     return padded
@@ -116,19 +116,8 @@ def hotkey(key):
         current = mapped
         vc = vcs[current]
         vc.set(cv2.CAP_PROP_POS_FRAMES, metadata["tracks"][current][index])
-    elif mapped in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]:
-        if metadata["tracks"].get(mapped) is not None:
-            if metadata["tracks"][mapped][index] != -1:
-                current = mapped
-                vc = vcs[current]
-
-                if index < len(metadata["tracks"][mapped]):
-                    if metadata["tracks"][mapped][index] < 0:
-                        current = "main"
-                        vc = vcs[current]
-
-                    vc.set(cv2.CAP_PROP_POS_FRAMES, metadata["tracks"][current][index])
-    elif mapped in ["10", "11", "12", "13", "14", "15", "16", "17", "18", "19"]:
+    elif mapped in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+                    "10", "11", "12", "13", "14", "15", "16", "17", "18", "19"]:
         if metadata["tracks"].get(mapped) is not None:
             if metadata["tracks"][mapped][index] != -1:
                 current = mapped
@@ -173,9 +162,21 @@ if __name__ == "__main__":
 
     if os.path.exists(actions_path):
         for file in os.listdir(actions_path):
-            if os.path.splitext(file)[-1] == ".json":
-                with open(f"{actions_path}/{file}", "r") as json_file:
-                    actions[os.path.splitext(file)[0]] = json.load(json_file)
+            if os.path.splitext(file)[-1] == ".xml":
+                root = etree.parse(f"{actions_path}/{file}").getroot()
+                annotated = OrderedDict()
+
+                for track in root.iterfind("track"):
+                    for entry in track.iter("points"):
+                        frame_id = entry.attrib["frame"]
+                        behavior = "".join(entry.find("attribute").itertext())
+
+                        if annotated.get(frame_id) is None:
+                            annotated[frame_id] = OrderedDict()
+
+                        annotated[frame_id] = behavior
+
+                    actions[os.path.splitext(file)[0]] = annotated
 
     index = 0
     cv2.namedWindow("TrackPlayer")
@@ -218,7 +219,8 @@ if __name__ == "__main__":
             cv2.putText(visualization, f"Frame: {index}", (50, 50), cv2.FONT_HERSHEY_SIMPLEX,
                         0.8, (255, 255, 255), 3, cv2.LINE_AA)
 
-            cv2.imshow("TrackPlayer", cv2.resize(visualization, (int(target_width // 2.5), int(target_height // 2.5))))
+            cv2.imshow("TrackPlayer", cv2.resize(visualization, (int(target_width // 2.5), int(target_height // 2.5)),
+                                                 interpolation=cv2.INTER_AREA))
 
             if save:
                 vw.write(visualization)

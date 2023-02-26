@@ -7,8 +7,8 @@ import cv2
 from src.utils import get_scene
 from collections import OrderedDict
 from src.detector import Detector
-from src.tracker import Tracker, TrackedObject
-from src.animal import Animal
+from src.tracker import Tracker, Tracks
+from src.object import Object
 from src.draw import Draw
 from tqdm import tqdm
 
@@ -71,13 +71,16 @@ def extract(video_path, annotation_path, tracking):
     vc = cv2.VideoCapture(video_path)
     original_width, original_height = int(vc.get(cv2.CAP_PROP_FRAME_WIDTH)), int(vc.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
+    print(f"{video_path} | {annotation_path} -> mini-scenes/{folder}")
+
     if not os.path.exists(f"mini-scenes/{folder}"):
         os.makedirs(f"mini-scenes/{folder}")
 
     vw = cv2.VideoWriter(f"mini-scenes/{folder}/{name}.mp4", cv2.VideoWriter_fourcc("m", "p", "4", "v"), 29.97,
                          (original_width, original_height))
-    tracker = Tracker(max_disappeared=40, max_distance=200)
-    tracked_objects = {}
+    max_disappeared = 40
+    tracker = Tracker(max_disappeared=max_disappeared, max_distance=300)
+    tracks = Tracks(max_disappeared=max_disappeared, interpolation=True)
     index = 0
     tracked_indices = OrderedDict()
     timeline = OrderedDict()
@@ -96,15 +99,17 @@ def extract(video_path, annotation_path, tracking):
             visualization = frame.copy()
 
             if annotated.get(index) is not None:
-                detections = []
                 centroids = []
+                attributes = []
                 objects = OrderedDict()
                 colors = OrderedDict()
 
                 for object_id, box in annotated[index].items():
-                    detections.append(box)
+                    attribute = {}
                     centroid = Detector.get_centroid(box)
                     centroids.append(centroid)
+                    attribute["box"] = box
+                    attributes.append(attribute)
 
                     if not tracking:
                         objects[object_id] = centroid
@@ -115,29 +120,29 @@ def extract(video_path, annotation_path, tracking):
                 if tracking:
                     objects, colors = tracker.update(centroids)
 
-                animals = Animal.animal_factory(objects, centroids, detections, colors)
+                objects = Object.object_factory(objects, centroids, colors, attributes=attributes)
 
-                for animal in animals:
-                    if tracks_vw.get(animal.object_id) is None:
+                for object in objects:
+                    if tracks_vw.get(object.object_id) is None:
                         if not os.path.exists(f"mini-scenes/{folder}"):
                             os.makedirs(f"mini-scenes/{folder}")
 
-                        tracks_vw[animal.object_id] = cv2.VideoWriter(f"mini-scenes/{folder}/{animal.object_id}.mp4",
+                        tracks_vw[object.object_id] = cv2.VideoWriter(f"mini-scenes/{folder}/{object.object_id}.mp4",
                                                                       cv2.VideoWriter_fourcc("m", "p", "4", "v"),
                                                                       29.97, (scene_width, scene_height))
-                        tracked_indices[animal.object_id] = 0
-                        timeline["tracks"][animal.object_id] = [-1] * annotated_size
+                        tracked_indices[object.object_id] = 0
+                        timeline["tracks"][object.object_id] = [-1] * annotated_size
 
-                for animal in animals:
-                    TrackedObject.update(tracked_objects, animal)
-                    TrackedObject.visualize_track(visualization, tracked_objects, animal, 20)
-                    Draw.scene(visualization, animal, scene_width, scene_height)
-                    Draw.animal_id(visualization, animal, scene=True)
+                for object in objects:
+                    tracks.update(index, object)
+                    Draw.track(visualization, tracks[object.object_id].centroids, object, 20)
+                    Draw.scene(visualization, object, scene_width, scene_height)
+                    Draw.object_id(visualization, object)
                     scene_frame = frame.copy()
-                    scene_frame = get_scene(scene_frame, animal, scene_width, scene_height)
-                    tracks_vw[animal.object_id].write(scene_frame)
-                    timeline["tracks"][animal.object_id][index] = tracked_indices[animal.object_id]
-                    tracked_indices[animal.object_id] += 1
+                    scene_frame = get_scene(scene_frame, object, scene_width, scene_height)
+                    tracks_vw[object.object_id].write(scene_frame)
+                    timeline["tracks"][object.object_id][index] = tracked_indices[object.object_id]
+                    tracked_indices[object.object_id] += 1
 
             cv2.imshow("tracks_extractor", cv2.resize(visualization,
                                                       (int(original_width // 2.5), int(original_height // 2.5))))
@@ -154,6 +159,9 @@ def extract(video_path, annotation_path, tracking):
 
     for track_key in tracks_vw.keys():
         tracks_vw[track_key].release()
+
+    if not os.path.exists(f"mini-scenes/{folder}/actions"):
+        os.makedirs(f"mini-scenes/{folder}/actions")
 
     if not os.path.exists(f"mini-scenes/{folder}/metadata"):
         os.makedirs(f"mini-scenes/{folder}/metadata")

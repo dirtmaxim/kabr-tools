@@ -43,7 +43,7 @@ class Tracker:
     def add(self, centroid):
         """Add new object."""
 
-        self.objects[self.next_object_id] = centroid
+        self.objects[self.next_object_id] = np.array(centroid)
         self.disappeared[self.next_object_id] = 0
         self.kalman_filters[self.next_object_id] = KalmanFiler()
         colors_values = list(self.colors_table.values())
@@ -60,6 +60,8 @@ class Tracker:
     def update(self, centroids):
         """Update tracks on a new frame."""
 
+        centroids = np.array(centroids)
+
         for object_id in self.objects.keys():
             self.objects[object_id] = self.kalman_filters[object_id].predict(self.objects[object_id][0],
                                                                              self.objects[object_id][1])
@@ -74,8 +76,6 @@ class Tracker:
                     self.delete(object_id)
 
             return self.objects, self.colors
-
-        centroids = np.array(centroids)
 
         if len(self.objects) == 0:
             for i in range(0, len(centroids)):
@@ -143,48 +143,118 @@ class KalmanFiler:
             self.initial_x = x
             self.initial_y = y
 
-            return x, y
+            return np.array([x, y])
 
         self.kalman_filter.correct(np.array([x - self.initial_x, y - self.initial_y], dtype=np.float32))
         predicted = self.kalman_filter.predict()
         predicted_x = int(predicted[0][0]) + self.initial_x
         predicted_y = int(predicted[1][0]) + self.initial_y
 
-        return predicted_x, predicted_y
+        return np.array([predicted_x, predicted_y])
 
 
-class TrackedObject:
-    def __init__(self, object_id, centroid):
-        """Stores track for object."""
+class Track:
+    def __init__(self, object_id, color, label=None):
+        self.object_id = object_id
+        self.color = color
+        self.label = label
+        self.centroids = []
+        self.boxes = []
+        self.indices = []
+        self.interpolated = []
+        self.index2centroid = {}
+        self.index2box = {}
+        self.missed_boxes = 0
 
-        self.objectID = object_id
-        self.centroids = [centroid]
 
-    @staticmethod
-    def update(tracked_objects, animal):
-        """Update tracks."""
+class Tracks:
+    def __init__(self, max_disappeared, interpolation=True):
+        self.tracks = {}
+        self.max_disappeared = max_disappeared
+        self.interpolation = interpolation
+        self.refined_index = -1
+        self.refined_tracks = []
 
-        tracked_object = tracked_objects.get(animal.object_id)
+    def __getitem__(self, key):
+        return self.tracks[key]
 
-        if tracked_object is None:
-            tracked_object = TrackedObject(animal.object_id, animal.centroid)
+    def __setitem__(self, key, value):
+        if isinstance(value, Track):
+            self.tracks[key] = value
         else:
-            tracked_object.centroids.append(animal.centroid)
+            raise ValueError(f"Type {type(value)} is not supported.")
 
-        tracked_objects[animal.object_id] = tracked_object
+    def keys(self):
+        return self.tracks.keys()
 
-    @staticmethod
-    def visualize_track(image, tracked_objects, animal, history):
-        """Visualize track with fading."""
+    def values(self):
+        return self.tracks.values()
 
-        tracked_object = tracked_objects[animal.object_id]
+    def items(self):
+        return self.tracks.items()
 
-        # if animal.detection is not None:
-        start = np.max([1, len(tracked_object.centroids) - history])
-        color = tuple([i - 30 for i in animal.color])
-        cv2.circle(image, tracked_object.centroids[-1], 10, color, -1)
+    def update(self, index, object):
+        if self.tracks.get(object.object_id) is None:
+            if object.label is None:
+                self.tracks[object.object_id] = Track(object.object_id, object.color)
+            else:
+                self.tracks[object.object_id] = Track(object.object_id, object.color, object.label)
 
-        for i in range(start, len(tracked_object.centroids)):
-            thickness = int(np.sqrt(64 * float(i - start + 1)) / 5)
-            cv2.line(image, tuple(tracked_object.centroids[i - 1]),
-                     tuple(tracked_object.centroids[i]), animal.color, thickness)
+        self.tracks[object.object_id].centroids.append(object.centroid)
+        self.tracks[object.object_id].index2centroid[index] = object.centroid
+
+        if object.box is None:
+            self.tracks[object.object_id].boxes.append(None)
+            self.tracks[object.object_id].index2box[index] = None
+        else:
+            self.tracks[object.object_id].boxes.append(object.box)
+            self.tracks[object.object_id].index2box[index] = object.box
+
+        self.tracks[object.object_id].indices.append(index)
+        self.tracks[object.object_id].interpolated.append(False)
+
+        if self.interpolation:
+            if self.tracks[object.object_id].boxes[-1] is None:
+                self.tracks[object.object_id].missed_boxes += 1
+            elif self.tracks[object.object_id].missed_boxes > 0:
+                current_box = self.tracks[object.object_id].boxes[-1]
+                past_box = self.tracks[object.object_id].boxes[-self.tracks[object.object_id].missed_boxes - 2]
+
+                coordinates_0 = np.linspace(current_box[0], past_box[0],
+                                            self.tracks[object.object_id].missed_boxes + 2, dtype=np.int32)[1:-1]
+                coordinates_1 = np.linspace(current_box[1], past_box[1],
+                                            self.tracks[object.object_id].missed_boxes + 2, dtype=np.int32)[1:-1]
+                coordinates_2 = np.linspace(current_box[2], past_box[2],
+                                            self.tracks[object.object_id].missed_boxes + 2, dtype=np.int32)[1:-1]
+                coordinates_3 = np.linspace(current_box[3], past_box[3],
+                                            self.tracks[object.object_id].missed_boxes + 2, dtype=np.int32)[1:-1]
+                interpolated_boxes = np.vstack((coordinates_0, coordinates_1, coordinates_2, coordinates_3)).T
+
+                for i, box in enumerate(interpolated_boxes):
+                    box = list(box)
+                    current = len(self.tracks[object.object_id].boxes) - 2 - i
+                    self.tracks[object.object_id].boxes[current] = box
+                    self.tracks[object.object_id].index2box[current] = box
+                    self.tracks[object.object_id].interpolated[current] = True
+
+                self.tracks[object.object_id].missed_boxes = 0
+
+        if index != self.refined_index:
+            self.refined_index = index
+
+            for object_id in list(self.tracks.keys()):
+                if object_id in self.refined_tracks:
+                    continue
+
+                last = self.tracks[object_id].indices[-1]
+
+                if index - last > self.max_disappeared:
+                    if len(self.tracks[object_id].indices) > self.max_disappeared * 2:
+                        # Refined track.
+                        self.tracks[object_id].centroids = self.tracks[object_id].centroids[:-self.max_disappeared]
+                        self.tracks[object_id].boxes = self.tracks[object_id].boxes[:-self.max_disappeared]
+                        self.tracks[object_id].indices = self.tracks[object_id].indices[:-self.max_disappeared]
+                        self.refined_tracks.append(object_id)
+                    else:
+                        # Auto-removed track.
+                        del self.tracks[object_id]
