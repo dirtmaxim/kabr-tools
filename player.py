@@ -144,7 +144,7 @@ if __name__ == "__main__":
 
     name = folder.split("/")[-1].split('|')[-1]
 
-    metadata_path = f"{folder}/metadata/{name}.json"
+    metadata_path = f"{folder}/metadata/{name}_metadata.json"
     actions_path = f"{folder}/actions"
 
     with open(metadata_path, "r") as file:

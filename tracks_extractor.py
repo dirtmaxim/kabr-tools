@@ -3,6 +3,7 @@ import os
 import sys
 import json
 from lxml import etree
+import shutil
 import cv2
 from src.utils import get_scene
 from collections import OrderedDict
@@ -166,9 +167,10 @@ def extract(video_path, annotation_path, tracking):
     if not os.path.exists(f"mini-scenes/{folder}/metadata"):
         os.makedirs(f"mini-scenes/{folder}/metadata")
 
+    shutil.copy(annotation_path, f"mini-scenes/{folder}/metadata/{name}_tracks.xml")
     generate_timeline_image(name, folder, timeline, annotated_size)
 
-    with open(f"mini-scenes/{folder}/metadata/{name}.json", "w") as file:
+    with open(f"mini-scenes/{folder}/metadata/{name}_metadata.json", "w") as file:
         json.dump(timeline, file)
 
     pbar.close()
@@ -201,7 +203,7 @@ if __name__ == "__main__":
                 if os.path.splitext(file)[1] == ".xml":
                     folder = root.split("/")[-1]
 
-                    if folder.startswith("!"):
+                    if folder.startswith("!") or file.startswith("!"):
                         continue
 
                     videos.append(os.path.join(video + root[len(annotation):], os.path.splitext(file)[0] + ".mp4"))

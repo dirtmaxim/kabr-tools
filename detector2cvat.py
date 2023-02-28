@@ -1,7 +1,6 @@
 import os
 import sys
 import cv2
-from lxml import etree
 from tqdm import tqdm
 from src.yolo import YOLOv8
 from src.tracker import Tracker, Tracks
@@ -23,7 +22,7 @@ if __name__ == "__main__":
             if os.path.splitext(file)[1] == ".mp4":
                 folder = root.split("/")[-1]
 
-                if folder.startswith("!"):
+                if folder.startswith("!") or file.startswith("!"):
                     continue
 
                 videos.append(f"{root}/{file}")
@@ -49,19 +48,8 @@ if __name__ == "__main__":
                                  29.97, (width, height))
             max_disappeared = 40
             tracker = Tracker(max_disappeared=max_disappeared, max_distance=300)
-            tracks = Tracks(max_disappeared=max_disappeared, interpolation=True)
-
-            # Create CVAT for video 1.1 XML.
-            xml_page = etree.Element("annotations")
-            etree.SubElement(xml_page, "version").text = "1.1"
-            xml_meta = etree.SubElement(xml_page, "meta")
-            xml_task = etree.SubElement(xml_meta, "task")
-            etree.SubElement(xml_task, "size").text = str(size)
-            xml_original_size = etree.SubElement(xml_task, "original_size")
-            etree.SubElement(xml_original_size, "width").text = str(width)
-            etree.SubElement(xml_original_size, "height").text = str(height)
-            etree.SubElement(xml_task, "source").text = f"{name}"
-
+            tracks = Tracks(max_disappeared=max_disappeared, interpolation=True,
+                            video_name=name, video_size=size, video_width=width, video_height=height)
             index = 0
             vc.set(cv2.CAP_PROP_POS_FRAMES, index)
             pbar = tqdm(total=size)
@@ -85,9 +73,9 @@ if __name__ == "__main__":
 
                     objects, colors = tracker.update(centroids)
                     objects = Object.object_factory(objects, centroids, colors, attributes=attributes)
+                    tracks.update(objects, index)
 
                     for object in objects:
-                        tracks.update(index, object)
                         Draw.track(visualization, tracks[object.object_id].centroids, object, 20)
                         Draw.bounding_box(visualization, object)
                         Draw.object_id(visualization, object)
@@ -109,40 +97,6 @@ if __name__ == "__main__":
             vc.release()
             vw.release()
             cv2.destroyAllWindows()
-
-            # Save annotations.
-            for track in tracks.values():
-                xml_track = etree.Element("track", id=str(track.object_id), label=str(track.label), source="manual")
-
-                for box_id, (box, frame_id, interpolated) in enumerate(
-                        zip(track.boxes, track.indices, track.interpolated)):
-                    # Mark the end of the track.
-                    if box_id == len(track.boxes) - 1:
-                        outside = "1"
-                    else:
-                        outside = "0"
-
-                    # If box is not found, look for previous available box.
-                    if box is None:
-                        replacement = box_id
-
-                        while box is None:
-                            replacement -= 1
-                            box = track.boxes[replacement]
-
-                        interpolated = True
-
-                    xml_box = etree.Element("box", frame=str(frame_id), outside=outside, occluded="0",
-                                            keyframe=str(int(not interpolated)), xtl=f"{box[0]:.2f}",
-                                            ytl=f"{box[1]:.2f}",
-                                            xbr=f"{box[2]:.2f}", ybr=f"{box[3]:.2f}", z_order="0")
-
-                    xml_track.append(xml_box)
-
-                if len(track.boxes) > 0:
-                    xml_page.append(xml_track)
-
-            xml_document = etree.ElementTree(xml_page)
-            xml_document.write(output_path, xml_declaration=True, pretty_print=True, encoding="utf-8")
+            tracks.save(output_path, "cvat")
         except:
             print("Something went wrong...")
