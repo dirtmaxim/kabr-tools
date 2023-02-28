@@ -117,7 +117,7 @@ if __name__ == "__main__":
                             if not os.path.exists(output_folder):
                                 os.makedirs(output_folder)
 
-                            # cv2.imwrite(f"{output_folder}/{index}.jpg", frame)
+                            cv2.imwrite(f"{output_folder}/{index}.jpg", frame)
                             charades_df.loc[len(charades_df.index)] = [f"{folder}_{os.path.splitext(file)[0]}",
                                                                        video_id,
                                                                        index,
