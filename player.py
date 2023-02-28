@@ -169,6 +169,11 @@ if __name__ == "__main__":
                 for track in root.iterfind("track"):
                     for entry in track.iter("points"):
                         frame_id = entry.attrib["frame"]
+                        outside = entry.attrib["outside"]
+
+                        if outside == "1":
+                            continue
+
                         behavior = "".join(entry.find("attribute").itertext())
 
                         if annotated.get(frame_id) is None:
