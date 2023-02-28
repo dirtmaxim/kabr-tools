@@ -122,6 +122,7 @@ def extract(video_path, annotation_path, tracking):
                     objects, colors = tracker.update(centroids)
 
                 objects = Object.object_factory(objects, centroids, colors, attributes=attributes)
+                tracks.update(objects, index)
 
                 for object in objects:
                     if tracks_vw.get(object.object_id) is None:
@@ -135,8 +136,7 @@ def extract(video_path, annotation_path, tracking):
                         timeline["tracks"][object.object_id] = [-1] * annotated_size
 
                 for object in objects:
-                    tracks.update(index, object)
-                    Draw.track(visualization, tracks[object.object_id].centroids, object, 20)
+                    Draw.track(visualization, tracks[object.object_id].centroids, object.color, 20)
                     Draw.scene(visualization, object, scene_width, scene_height)
                     Draw.object_id(visualization, object)
                     scene_frame = frame.copy()

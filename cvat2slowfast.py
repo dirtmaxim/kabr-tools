@@ -33,7 +33,9 @@ if __name__ == "__main__":
                           "Dusting": 14,
                           "Fighting": 15,
                           "Chasing": 16,
-                          "Out Of Sight": 17}
+                          "Occluded": 17,
+                          "Out of Focus": 18,
+                          "Out of Frame": 19}
 
     number2label_zebra = {value: key for key, value in label2number_zebra.items()}
 
@@ -47,7 +49,9 @@ if __name__ == "__main__":
                             "Urinating": 7,
                             "Defecating": 8,
                             "Fighting": 9,
-                            "Out Of Sight": 10}
+                            "Occluded": 10,
+                            "Out of Focus": 11,
+                            "Out of Frame": 12}
 
     number2label_giraffe = {value: key for key, value in label2number_giraffe.items()}
 

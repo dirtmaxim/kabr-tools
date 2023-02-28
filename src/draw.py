@@ -83,11 +83,11 @@ class Draw:
                     cv2.FONT_HERSHEY_SIMPLEX, size, tuple([i - 100 for i in object.color]), thickness_in, cv2.LINE_AA)
 
     @staticmethod
-    def track(image, centroids, object, history):
+    def track(image, centroids, color, history):
         start = np.max([1, len(centroids) - history])
-        color = tuple([i - 30 for i in object.color])
-        cv2.circle(image, centroids[-1], 10, color, -1)
+        faded = tuple([i - 30 for i in color])
+        cv2.circle(image, centroids[-1], 10, faded, -1)
 
         for i in range(start, len(centroids)):
             thickness = int(np.sqrt(64 * float(i - start + 1)) / 5)
-            cv2.line(image, tuple(centroids[i - 1]), tuple(centroids[i]), object.color, thickness)
+            cv2.line(image, tuple(centroids[i - 1]), tuple(centroids[i]), color, thickness)

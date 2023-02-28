@@ -76,7 +76,7 @@ if __name__ == "__main__":
                     tracks.update(objects, index)
 
                     for object in objects:
-                        Draw.track(visualization, tracks[object.object_id].centroids, object, 20)
+                        Draw.track(visualization, tracks[object.object_id].centroids, object.color, 20)
                         Draw.bounding_box(visualization, object)
                         Draw.object_id(visualization, object)
 
