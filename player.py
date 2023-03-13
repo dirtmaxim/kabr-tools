@@ -74,11 +74,11 @@ def draw_actions(current, index, image, actions, metadata, width, height):
 
     if actions.get(current) is None:
         return image
-    elif actions[current].get(str(index)) is None:
+    elif actions[current].get(str(metadata["tracks"][current][index])) is None:
         return image
 
     color = metadata["colors"][current]
-    label = "|".join(actions[current][str(index)].split(","))
+    label = "|".join(actions[current][str(metadata["tracks"][current][index])].split(","))
     thickness_in = 4
     size = 1.5
     label_length = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, size, thickness_in)
