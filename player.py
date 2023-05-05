@@ -218,7 +218,7 @@ if __name__ == "__main__":
             visualization = draw_aim(current, visualization)
             visualization = draw_id(current, visualization, metadata, target_width)
             visualization = draw_actions(current, index, visualization, actions, metadata, target_width, target_height)
-            # visualization = draw_info(visualization, target_width)
+            visualization = draw_info(visualization, target_width)
             trackbar_position = cv2.getTrackbarPos(name, "TrackPlayer")
             cv2.setTrackbarPos(name, "TrackPlayer", index)
             cv2.putText(visualization, f"Frame: {index}", (50, 50), cv2.FONT_HERSHEY_SIMPLEX,
