@@ -1,8 +1,8 @@
-# imageomics-tools
+# kabr-tools
 
-This repository contains tool for working with data for annotating animal behavior.
+This repository contains tools for the KABR dataset preparation.
 
-![](https://user-images.githubusercontent.com/11778655/220999935-dd190898-7cbc-4e83-acfd-ce9d2b7d24e5.png)
+![](https://user-images.githubusercontent.com/11778655/236357196-c09547fc-0e6b-4b2e-a7a5-18683dc944e5.png)
 
 detector2cvat.py:\
 Detect objects with Ultralytics YOLO detections, apply SORT tracking and convert tracks to CVAT format.
@@ -34,7 +34,7 @@ python player.py path_to_folder [save]
 
 
 cvat2slowfast.py:\
-Convert CVAT annotations to SlowFast Charades dataset.
+Convert CVAT annotations to the dataset in Charades format.
 
 ```
 python cvat2slowfast.py path_to_mini_scenes dataset_name [zebra, giraffe]

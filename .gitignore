@@ -1,6 +1,11 @@
 .idea/*
 __pycache__/*
 mini-scenes/*
+leaderboard.png
 statistics_giraffes.png
 statistics_zebras.png
+statistics_all.png
+statistics_g.png
+statistics_zg.png
+statistics_zp.png
 yolov8x.pt

@@ -47,6 +47,18 @@ if __name__ == "__main__":
                        "Out of Focus": 0,
                        "Out of Frame": 0}
 
+    data["Baboon"] = {"Walk": 0,
+                      "Head Up": 0,
+                      "Forage": 0,
+                      "Auto-Groom": 0,
+                      "Mutual Grooming": 0,
+                      "Running": 0,
+                      "Infant Carry": 0,
+                      "Fighting": 0,
+                      "Occluded": 0,
+                      "Out of Focus": 0,
+                      "Out of Frame": 0}
+
     for folder in os.listdir(path_to_mini_scenes):
         for file in os.listdir(f"{path_to_mini_scenes}/{folder}/actions"):
             actions_xml = f"{path_to_mini_scenes}/{folder}/actions/{file}"
