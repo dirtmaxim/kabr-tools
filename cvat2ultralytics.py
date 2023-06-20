@@ -21,7 +21,7 @@ if __name__ == "__main__":
         video_path = sys.argv[1]
         annotation_path = sys.argv[2]
         dataset = sys.argv[3]
-        skip = sys.argv[4]
+        skip = int(sys.argv[4])
 
     # Create a YOLO dataset structure.
     dataset_file = f"""
@@ -66,7 +66,13 @@ if __name__ == "__main__":
 
     for root, dirs, files in os.walk(annotation_path):
         for file in files:
-            videos.append(os.path.join(video_path + root[len(annotation_path):], os.path.splitext(file)[0] + ".mp4"))
+            video_name = os.path.join(video_path + root[len(annotation_path):], os.path.splitext(file)[0])
+
+            if os.path.exists(video_name + ".MP4"):
+                videos.append(video_name + ".MP4")
+            else:
+                videos.append(video_name + ".mp4")
+
             annotations.append(os.path.join(root, file))
 
     for i, (video, annotation) in enumerate(zip(videos, annotations)):
@@ -79,10 +85,29 @@ if __name__ == "__main__":
         # Parse CVAT for video 1.1 annotation file.
         root = etree.parse(annotation).getroot()
         name = os.path.splitext(video.split("/")[-1])[0]
-        annotated_size = int("".join(root.find("meta").find("task").find("size").itertext()))
-        width = int("".join(root.find("meta").find("task").find("original_size").find("width").itertext()))
-        height = int("".join(root.find("meta").find("task").find("original_size").find("height").itertext()))
+
+        if root.find("meta").find("task") is not None:
+            annotated_size = int("".join(root.find("meta").find("task").find("size").itertext()))
+            width = int("".join(root.find("meta").find("task").find("original_size").find("width").itertext()))
+            height = int("".join(root.find("meta").find("task").find("original_size").find("height").itertext()))
+        else:
+            annotated_size = int("".join(root.find("meta").find("job").find("size").itertext()))
+            width = int("".join(root.find("meta").find("original_size").find("width").itertext()))
+            height = int("".join(root.find("meta").find("original_size").find("height").itertext()))
+
         annotated = dict()
+        track2end = {}
+
+        for track in root.iterfind("track"):
+            track_id = int(track.attrib["id"])
+            label = label2index[track.attrib["label"].lower().capitalize()]
+
+            for box in track.iter("box"):
+                frame_id = int(box.attrib["frame"])
+                keyframe = int(box.attrib["keyframe"])
+
+                if keyframe == 1:
+                    track2end[track_id] = frame_id
 
         for track in root.iterfind("track"):
             track_id = int(track.attrib["id"])
@@ -94,15 +119,16 @@ if __name__ == "__main__":
                 if annotated.get(frame_id) is None:
                     annotated[frame_id] = OrderedDict()
 
-                x_start = float(box.attrib["xtl"])
-                y_start = float(box.attrib["ytl"])
-                x_end = float(box.attrib["xbr"])
-                y_end = float(box.attrib["ybr"])
-                x_center = (x_start + (x_end - x_start) / 2) / width
-                y_center = (y_start + (y_end - y_start) / 2) / height
-                w = (x_end - x_start) / width
-                h = (y_end - y_start) / height
-                annotated[frame_id][track_id] = [label, x_center, y_center, w, h]
+                if frame_id <= track2end[track_id]:
+                    x_start = float(box.attrib["xtl"])
+                    y_start = float(box.attrib["ytl"])
+                    x_end = float(box.attrib["xbr"])
+                    y_end = float(box.attrib["ybr"])
+                    x_center = (x_start + (x_end - x_start) / 2) / width
+                    y_center = (y_start + (y_end - y_start) / 2) / height
+                    w = (x_end - x_start) / width
+                    h = (y_end - y_start) / height
+                    annotated[frame_id][track_id] = [label, x_center, y_center, w, h]
 
         index = 0
         vc = cv2.VideoCapture(video)
@@ -110,13 +136,20 @@ if __name__ == "__main__":
 
         while vc.isOpened():
             returned, frame = vc.read()
+            saved = False
 
             if returned:
+                if index > max(track2end.values()):
+                    pbar.update(annotated_size - index)
+                    break
+
                 if annotated.get(index) is not None:
                     if index % skip == 0:
-                        cv2.imwrite(f"{dataset}/images/train/{name}_{index}.jpg", frame)
-
                         for box in annotated[index].values():
+                            if not saved:
+                                cv2.imwrite(f"{dataset}/images/train/{name}_{index}.jpg", frame)
+                                saved = True
+
                             with open(f"{dataset}/labels/train/{name}_{index}.txt", "a") as file:
                                 file.write(f"{box[0]} {box[1]:.6f} {box[2]:.6f} {box[3]:.6f} {box[4]:.6f}\n")
 
